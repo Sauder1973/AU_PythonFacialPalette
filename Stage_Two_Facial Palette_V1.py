@@ -1,8 +1,31 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Feb 21 20:00:57 2022
+# STAGE TWO:
+# Facial PALETTE Code:
+#   Wes Sauder
+#    2200442
+#   Athabasca University
+
+#  February 27, 2022
+
+# This is the primary code for building facial parsing process.
+#   Steps to follow:
+#       Retrieve Data From Facial Parser
+#           - Pkl Files for HOG
+#           - Raw Images
+#           - AU/Index etc
+#       Frames to HOG (OPTIONAL)
+#       
+#       PCA ANALYSIS - Dimensional Reduction
+#       Clustering
+#       SSIM (or alternative) - Image Similiarity Scoring
+#           Determine quality In Cluster (minimum distance) and Between Cluster (maximum distance)
+#           Remove Outlier from Cluster
+#       Stage Data with Cluster Folders and File to Cluster File for PyTorch Dataloader in next process (Facial Reenactment)
+
 
 @author: WesSa
+
 """
 
 
