@@ -47,6 +47,24 @@ from matplotlib import pyplot as plt
 import os
 import pickle
 
+
+from fast_pytorch_kmeans import KMeans
+import torch
+from torch.utils.data import Dataset
+
+import datetime
+import pytz
+
+from SaveImages import Save_FileToClusterDirctory
+from SaveImages import Save_FilesToSingleDirctory
+from SaveImages import Save_FilesToSingleDir_NoCluster
+
+
+from imutils import build_montages
+from imutils import paths
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------
 # Constants
 
 
@@ -57,6 +75,12 @@ au_model = "rf"
 emotion_model = "resmasknet"
 
 detector = featDetect(face_model = face_model, landmark_model = landmark_model, au_model = au_model, emotion_model = emotion_model)
+
+
+Actor = "Actor_12"
+StudyPath = "FacesOut_2022_02_26_HR_2049_OutFinal"
+RootPath = LeftEyeImagesPath = "F:\Project_FacialReenactmentOutputs"
+
 
 
 # Setup Image and HOG paths from Stage One - Facial Parser
@@ -85,7 +109,7 @@ for root, dirs, files in os.walk(ImagePaths[1]):
 
 
 images_FacialPart = pd.DataFrame(fileDetails)
-images_FacialPartFilesWithPath = fileDetails[["FullPathToAnalyze"]]
+images_FacialPartFilesWithPath = images_FacialPart[["FullPathToAnalyze"]]
 
 
 # Open PKL File - HOG numpy Array from Stage One: Facial Parser
@@ -99,6 +123,102 @@ with open(pickleHOG_Root+'LeftEye_HOG_Data.pkl', 'rb') as f:
 
 
 
+# Fast KMeans Trials
+
+kmeans = KMeans(n_clusters=20, mode='euclidean', verbose=1)
+x_data = torch.from_numpy(result_LeftEye_HOG_fd_FLAT)
+
+labels_Clust = kmeans.fit_predict(x_data.float())
+
+out_Labels   = labels_Clust.to("cuda")
+out_Labels   = out_Labels.to("cpu").numpy()
+out_Labels   = out_Labels.tolist()
+
+
+# Qualitative Summaries:
+# See Results of Each Cluster:
+    
+j = 0
+
+for i in out_Labels:
+    print(i)
+    clusterImagePaths = filesResult.Path[(filesResult.Cluster == i )]
+    Header = ("Montage - Cluster: ", i)
+
+    if len(clusterImagePaths) >= 2:
+        j = j + 1
+        Header = ("Montage - Cluster: ", i," Iteration: ",j)
+        clusterImagePaths = clusterImagePaths.astype(str)
+        images = []
+        imageTots = 0
+        # loop over the list of image paths
+        for currImagePath in clusterImagePaths:
+            imageTots = imageTots + 1
+            if currImagePath[2:4] == "F:":
+                currImagePath = currImagePath[2:len(currImagePath)-2]
+
+            image = cv.imread(currImagePath)
+
+            images.append(image)
+
+ 
+        ## construct the montages for the images
+
+        #montages = build_montages(images, (128, 196), (14, 5))
+        montages = build_montages(images, (128, 196), (8, 9))
+
+
+
+        ## loop over the montages and display each of them
+        for montage in montages:
+            winname = "Montage - Cluster: %d --- Iteration: %d" % (i,j)
+            print(winname)
+            cv2.namedWindow(winname)
+            cv2.moveWindow(winname,40,30)
+            #cv2.imshow("Montage - Cluster: %d --- Iteration: %d" % (i,j), montage)
+            cv2.imshow(winname,montage)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Save Results Of Cluster - Summary File with Clustered Images
+
+# Create Parent Path for clusters
+RootPath = LeftEyeImagesPath = "F:\Project_FacialReenactmentOutputs"
+Actor = "Actor_12"
+StudyPath = "FacesOut_2022_02_26_HR_2049_OutFinal"
+clustDirRoot = RootPath + "\\" + Actor + "\\" + StudyPath + "\\ClusterResults"
+os.mkdir(clustDirRoot)
+
+
+
+#Create Directory Structure for Cluster Results
+currdate = datetime.datetime.now(pytz.timezone('US/Eastern'))
+clustDirChild = "Clusters_" + str(currdate.year) + "_" + str(("00" + str(currdate.month))[-2:]) + "_" + str(("00" + str(currdate.day))[-2:]) + "_HR_" +  str(("00" + str(currdate.hour))[-2:] +  str(("00" + str(currdate.minute))[-2:]))
+
+studyPath = clustDirRoot + "\\" +  clustDirChild
+
+# Save Each File to a Distinct Directory based on CLUSTER
+
+listOfFiles, listOfClusters, directoryOfImages = Save_FilesToSingleDirctory(out_Labels,result_Mouth,Actor,studyPath, FacialFeature[1], SaveCSV = True)
+
+Save_FileToClusterDirctory(out_Labels,result_RightEye, Actor ,studyPath,FacialFeature[1])
 
 
 # -----------
