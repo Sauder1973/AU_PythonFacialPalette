@@ -336,12 +336,14 @@ else:
     clusterData = pd.read_csv(clusterFilePath + "\\"+ clusterFileName)
 
 
+
+
+# ---------------------------------------------------------------------------------------------------------------------------
 # Begin Assessing Within Cluster similarities
 #Taken From: https://betterprogramming.pub/how-to-measure-image-similarities-in-python-12f1cb2b7281
 # # Sewar Methods: https://towardsdatascience.com/measuring-similarity-in-two-images-using-python-b72233eb53c6
 # # PyImage Search: https://www.pyimagesearch.com/2014/09/15/python-compare-two-images/
-
-   
+  
 
 
 clustersToMeasure = list(set(clusterData['Class Label']))
@@ -350,11 +352,16 @@ clustersToMeasure = list(set(clusterData['Class Label']))
 currCluster = 0
 totalCalcs = 0
 
+resultDictionary = {}
+
 
 import time
 start_time = time.time()
 
 for currCluster in clustersToMeasure:
+    
+    clusterDictionary = {}
+        
     #print(currCluster)
     
     #Get list of Files from the current cluster
@@ -362,7 +369,7 @@ for currCluster in clustersToMeasure:
 
     #Cycle Through Each File  - Calculate SSIM into a matrix
     
- 
+    
     df_SSIM2 = pd.DataFrame(index=range(len(currListOfFiles)),columns=range(len(currListOfFiles)))
     
     df_SSIM2.columns = currListOfFiles
@@ -378,27 +385,30 @@ for currCluster in clustersToMeasure:
     
         #print("Cluster: " + str(currCluster) +"  Primary File: " + Testfile)
         test_img = cv.imread(Testfile, cv.IMREAD_GRAYSCALE)
-        
-        #currImage = test_img.ravel()
-        #imagesCollected.append(test_img.ravel())
+    
+        imagesCollected.append(test_img.ravel())
         
         # plt.imshow(test_img, interpolation='nearest')
         # plt.show()
+        
         
         rowOffset = 0
         #Curfile = currListOfFiles[0]
         lenOfClusterCols = len(currListOfFiles)
         
         for Curfile in currListOfFiles[rowOffset:len(currListOfFiles)]:
-            print("Cluster: " + str(currCluster) +  "           ---------------------------------------------------------------")
+           
+            
+            print("Cluster: " + str(currCluster) +  "           ----------------------------------------------------")
             print("Current Column Index: " + str(currColIndex))
             print(" Calculation Number: " + str(rowOffset) + "  Out of " + str(lenOfClusterCols) + " Columns")
             print("    Primary File: " + Testfile)
             print("    Current File: "  + Curfile)
-            print("   Total Calculations: " + str(totalCalcs)+ "---------------------------------------------------------------")
+            print("   Total Calculations: " + str(totalCalcs)+ "     -----------------------------------------------")
             print("--- %s seconds ---" % (time.time() - start_time))
             
             data_img = cv.imread(Curfile, cv.IMREAD_GRAYSCALE)
+            
     
             # plt.imshow(data_img, interpolation='nearest')
             # plt.show()
@@ -421,53 +431,53 @@ for currCluster in clustersToMeasure:
 
 
 
-# ---------------------------------------------------------------------------------------------------------------------------
-# Summarize Cluster Quality Measures
+    # --------------------------------------------------------------------------------------------------------------
+    # Summarize Cluster Quality Measures
 
-
+    df_SSIM2.plot(kind = 'hist', legend = False, bins = 50, title = "Structural Similarity Index 2")
     
-# Get minimum values of everyrow
+    # Get minimum values of everyrow
+    
+    df_SSIM2_Test = df_SSIM2
+    indexes = df_SSIM2_Test.index
+    
+    
+    df_SSIM2_Test['id_variable'] = indexes
+    long_SSIM2 = pd.melt(df_SSIM2_Test, id_vars = ['id_variable'])
+    
+    long_SSIM2.dropna(subset = ['value'], inplace=True)
+    long_SSIM2 = long_SSIM2[long_SSIM2.id_variable != long_SSIM2.variable]
+    long_SSIM2 = long_SSIM2.sort_values(by = 'value')
+    
+    
+    # Determine the File with the Poor Scores
+    
+    ImagesSSIM = long_SSIM2[['id_variable', 'value']]
+    ImagesSSIM = ImagesSSIM.set_axis(["Image","SSIM_Score"], axis = 1)
+    variableSSIM = long_SSIM2[['variable', 'value']]
+    variableSSIM = variableSSIM.set_axis(["Image","SSIM_Score"], axis = 1)
+    ImagesSSIM = ImagesSSIM.append(variableSSIM)
+    
+    # using dictionary to convert specific columns
+    convert_dict = {'Image': str,
+                    'SSIM_Score': float
+                   }
+      
+    variableSSIM = variableSSIM.astype(convert_dict)
+    
+    
+    ImageSSIM_Score = variableSSIM.groupby('Image').mean()
+    #ImageSSIM_Score = ImageSSIM_Score.sort_values(by = 'SSIM_Score')
+    
+    
+    # Histogram of SSIM Scores
+    #ImageSSIM_Score.plot(kind = 'hist', legend = False, bins = 50, title = "Mean SSIM By Cluster Image")
 
-df_SSIM2_Test = df_SSIM2
-indexes = df_SSIM2_Test.index
+    #Save Results to Dictionary
+    clusterDictionary = {"Testfile": Testfile, "ImageSSIM_Score": ImageSSIM_Score, "Images": imagesCollected}    
 
 
-df_SSIM2_Test['id_variable'] = indexes
-long_SSIM2 = pd.melt(df_SSIM2_Test, id_vars = ['id_variable'])
-
-long_SSIM2.dropna(subset = ['value'], inplace=True)
-long_SSIM2 = long_SSIM2[long_SSIM2.id_variable != long_SSIM2.variable]
-long_SSIM2 = long_SSIM2.sort_values(by = 'value')
-
-
-# Determine the File with the Poor Scores
-
-ImagesSSIM = long_SSIM2[['id_variable', 'value']]
-ImagesSSIM = ImagesSSIM.set_axis(["Image","SSIM_Score"], axis = 1)
-variableSSIM = long_SSIM2[['variable', 'value']]
-variableSSIM = variableSSIM.set_axis(["Image","SSIM_Score"], axis = 1)
-ImagesSSIM = ImagesSSIM.append(variableSSIM)
-
-# using dictionary to convert specific columns
-convert_dict = {'Image': str,
-                'SSIM_Score': float
-               }
-  
-variableSSIM = variableSSIM.astype(convert_dict)
-
-
-ImageSSIM_Score = variableSSIM.groupby('Image').mean()
-#ImageSSIM_Score = ImageSSIM_Score.sort_values(by = 'SSIM_Score')
-
-
-# Histogram of SSIM Scores
-#ImageSSIM_Score.plot(kind = 'hist', legend = False, bins = 50, title = "Mean SSIM By Cluster Image")
-
-#Save Results
-clusterDictionary = {"CurrDirTail": CurrDirTail, "ImageSSIM_Score": ImageSSIM_Score, "Images": imagesCollected}    
-
-
-resultDictionary[CurrDirTail] = clusterDictionary
+    resultDictionary[Testfile] = clusterDictionary
 
 
 
@@ -527,8 +537,8 @@ for key in resultDictionary:
     
     
     
-    plt.imshow(data_img, interpolation='nearest')
-    plt.show()
+    # plt.imshow(data_img, interpolation='nearest')
+    # plt.show()
     
 
 
@@ -543,16 +553,6 @@ import pickle
 
 file_to_write = open("f:\MouthData.pickle", "wb")
 pickle.dump(resultDictionary, file_to_write)
-
-
-
-
-
-
-
-
-
-
 
 
 
