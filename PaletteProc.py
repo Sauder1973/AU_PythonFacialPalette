@@ -298,3 +298,33 @@ def Montage_FacePart ( dataFacePart, frameWidth, frameHeight, montageCols, monta
             cv2.destroyAllWindows()
 
 
+
+def Montage_Cluster ( dataFacePart, frameWidth, frameHeight, montageCols, montageRows, Path, FacePart, ClusterLabel ):
+    
+    import pytz
+    import datetime 
+    import cv2
+
+    montages = build_montages(dataFacePart,(frameWidth, frameHeight), (montageCols, montageRows))
+    i = 0
+    FileFamily = FacePart
+                    
+    my_date = datetime.datetime.now(pytz.timezone('US/Eastern'))
+    dateVar = str(my_date.year) + "_" + str(("00" + str(my_date.month))[-2:]) + "_" + str(("00" + str(my_date.day))[-2:]) + "_HR_" +  str(("00" + str(my_date.hour))[-2:])
+    
+    print("Path equals: %s" %(Path))
+    ## loop over the montages and display and or save each of them
+    for montage in montages:
+        if Path != None:
+            
+            print("SAVING TO DISK")
+            fileName = FileFamily + "_" + dateVar
+            SaveFileName = Path + "/" + fileName + "_CLUSTER_" + str(ClusterLabel) +".jpg"
+            print("SAVING: " + SaveFileName)
+            cv2.imwrite(SaveFileName,montage)
+        else: 
+            i = i + 1
+            cv2.imshow("Montage - Face Part: %s Cluster: %d  Frames: %d" % (FacePart,ClusterLabel, i), montage)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+
