@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['Stage_Two_Facial Palette_V2.py', '..\\OneDrive\\Documents\\Athabasca\\AU Project\\AU_Project_FacialReenact_FINAL\\Stage_One_FacialParsing_V4.py', 'PaletteProc.py', 'SaveImages.py', 'SimiliarityStudies_V1.py', 'PostSimiliarityResults_Study_V1.py']
+recent_files = ['Stage_One_FacialParsing_V4.py', 'Stage_Two_Facial Palette_V2.py', 'PaletteProc.py', 'DataLoading.py', 'SimiliarityStudies_V1.py']
 
 [main]
 version = 0.2.0

@@ -124,7 +124,15 @@ RootPath            = "F:\\Project_FacialReenactmentOutputs\\"
 Actor               = "Actor_12\\"
 #StudyPath           = "FacesOut_2022_02_26_HR_2049_OutFinal"
 parentStudyDateTime = "2022_02_26_HR_2049"
-childSTudyDateTime  = "2022_02_26_HR_2055"
+
+
+
+childSTudyDateTime_FFace  = "2022_02_26_HR_2053" #Actor 12 - Full Face
+childSTudyDateTime_LtEye  = "2022_02_26_HR_2055" #Actor 12 - Left Eye
+childSTudyDateTime_RtEye  = "2022_02_26_HR_2056" #Actor 12 - Right Eye
+childSTudyDateTime_Mouth  = "2022_02_26_HR_2056" #Actor 12 - Mouth
+
+
 
 
 # Setup Image and HOG paths from Stage One - Facial Parser
@@ -134,9 +142,9 @@ childSTudyDateTime  = "2022_02_26_HR_2055"
 
 FacialFeature = ["LeftEye", "RightEye", "Mouth"]
 #LeftEyeImagesPath = RootPath + Actor + "Faces_Out_" +FacialFeature[1] + "_" + studyDateTimeString
-LeftEyeImagesPath = RootPath + Actor + "FacesOut_" + parentStudyDateTime + "_OutFinal\\Images_RAW_CROPPED\\" + FacialFeature[0] + "_" + childSTudyDateTime
-RightEyeImagesPath = RootPath + Actor + "FacesOut_" + parentStudyDateTime + "_OutFinal\\Images_RAW_CROPPED\\" + FacialFeature[1] + "_" + childSTudyDateTime
-MouthImagesPath = RootPath + Actor + "FacesOut_" + parentStudyDateTime + "_OutFinal\\Images_RAW_CROPPED\\" + FacialFeature[2] + "_" + childSTudyDateTime
+LeftEyeImagesPath = RootPath + Actor + "FacesOut_" + parentStudyDateTime + "_OutFinal\\Images_RAW_CROPPED\\" + FacialFeature[0] + "_" + childSTudyDateTime_LtEye
+RightEyeImagesPath = RootPath + Actor + "FacesOut_" + parentStudyDateTime + "_OutFinal\\Images_RAW_CROPPED\\" + FacialFeature[1] + "_" + childSTudyDateTime_RtEye
+MouthImagesPath = RootPath + Actor + "FacesOut_" + parentStudyDateTime + "_OutFinal\\Images_RAW_CROPPED\\" + FacialFeature[2] + "_" + childSTudyDateTime_Mouth
 
 HOG_DataPath      = RootPath + Actor + "FacesOut_" + parentStudyDateTime + "_OutFinal\\HOG_DATA\\"
 ClusterResultPath = RootPath + Actor + "FacesOut_" + parentStudyDateTime + "_OutFinal\\ClusterResults\\"
@@ -159,7 +167,7 @@ filesForAnalysis = []
 fileDetails = []
     
 
-currFacialIndx = 0
+currFacialIndx = 2
 
 
 for root, dirs, files in os.walk(ImagePaths[currFacialIndx]):
@@ -193,7 +201,7 @@ with open(HOG_DataPath+FacialFeature[currFacialIndx]+ '_HOG_Data.pkl', 'rb') as 
 # Fast KMeans Trials
 # Use PKL Data
 
-clusters = 20
+clusters = 25
 kmeans = KMeans(n_clusters=clusters, mode='euclidean', verbose=1)
 x_data = torch.from_numpy(result_FacialPart_HOG_fd_FLAT)
 
@@ -230,7 +238,7 @@ if not os.path.exists(ClusterResultPath):
 currdate = datetime.datetime.now(pytz.timezone('US/Eastern'))
 clustDirChild = "ClusterResults_" + str(currdate.year) + "_" + str(("00" + str(currdate.month))[-2:]) + "_" + str(("00" + str(currdate.day))[-2:]) + "_HR_" +  str(("00" + str(currdate.hour))[-2:] +  str(("00" + str(currdate.minute))[-2:]))
 
-studyPath = ClusterResultPath + "\\" +  clustDirChild
+studyPath = ClusterResultPath + "\\" +  clustDirChild + "_" +  FacialFeature[currFacialIndx]
 
 if not os.path.exists(studyPath):
     os.makedirs(studyPath)
@@ -318,7 +326,7 @@ out_FullFilePathToCluster = images_FacialPart#["FullPathToAnalyze"]
 
 out_FullFilePathToCluster["Class Label"] = out_Labels
 out_FullFilePathToCluster = out_FullFilePathToCluster[[ 'Class Label', 'File Name']]
-out_FullFilePathToCluster.to_csv(studyPath+"\\"+FacialFeature[1]+"_ImageToCluster_Formatted.csv", index = False)
+out_FullFilePathToCluster.to_csv(studyPath+"\\"+FacialFeature[currFacialIndx]+"_ImageToCluster_Formatted.csv", index = False)
     
 
 
@@ -353,24 +361,27 @@ currCluster = 0
 totalCalcs = 0
 
 resultDictionary = {}
+resultSSIM2_Rslt = {}
 
 
 import time
 start_time = time.time()
 
+
+# CYCLE THROUGH EACH CLUSTER -----------------------------------------------------------------------------------
 for currCluster in clustersToMeasure:
     
     clusterDictionary = {}
         
-    #print(currCluster)
+    print("Current Cluster: " + str(currCluster))
     
     #Get list of Files from the current cluster
     currListOfFiles = list(clusterData['File Name'][clusterData['Class Label'] == currCluster])
 
     #Cycle Through Each File  - Calculate SSIM into a matrix
-    
-    
-    df_SSIM2 = pd.DataFrame(index=range(len(currListOfFiles)),columns=range(len(currListOfFiles)))
+        
+    clusterDataFrameDim = len(currListOfFiles)
+    df_SSIM2 = pd.DataFrame(index=range(clusterDataFrameDim),columns=range(clusterDataFrameDim))
     
     df_SSIM2.columns = currListOfFiles
     df_SSIM2.index = currListOfFiles
@@ -380,9 +391,13 @@ for currCluster in clustersToMeasure:
     
     Testfile = currListOfFiles[1]
     currColIndex = 0
-    
+
+
+
+# CYCLE THROUGH EACH COLUMN: Calculate SSIM for Top Item by each subsequent Item -------------------------------------------------------------------------------
     for Testfile in currListOfFiles:
     
+        print("NEW COLUMN ------------------------------------------------------------")
         #print("Cluster: " + str(currCluster) +"  Primary File: " + Testfile)
         test_img = cv.imread(Testfile, cv.IMREAD_GRAYSCALE)
     
@@ -395,13 +410,18 @@ for currCluster in clustersToMeasure:
         rowOffset = 0
         #Curfile = currListOfFiles[0]
         lenOfClusterCols = len(currListOfFiles)
-        
+  
+
+
+
+# CYCLE THROUGH EACH COLUMN: Calculate SSIM for Top Item by each subsequent Item -------------------------------------------------------------------------------
+    
         for Curfile in currListOfFiles[rowOffset:len(currListOfFiles)]:
            
             
             print("Cluster: " + str(currCluster) +  "           ----------------------------------------------------")
             print("Current Column Index: " + str(currColIndex))
-            print(" Calculation Number: " + str(rowOffset) + "  Out of " + str(lenOfClusterCols) + " Columns")
+            print(" Calculation Number: " + str(rowOffset) + "  Out of " + str(lenOfClusterCols) + " Rows")
             print("    Primary File: " + Testfile)
             print("    Current File: "  + Curfile)
             print("   Total Calculations: " + str(totalCalcs)+ "     -----------------------------------------------")
@@ -471,512 +491,575 @@ for currCluster in clustersToMeasure:
     
     
     # Histogram of SSIM Scores
-    #ImageSSIM_Score.plot(kind = 'hist', legend = False, bins = 50, title = "Mean SSIM By Cluster Image")
-
-    #Save Results to Dictionary
-    clusterDictionary = {"Testfile": Testfile, "ImageSSIM_Score": ImageSSIM_Score, "Images": imagesCollected}    
+    ImageSSIM_Score.plot(kind = 'hist', legend = False, bins = 100, title = "Mean SSIM By Cluster Image")
 
 
-    resultDictionary[Testfile] = clusterDictionary
-
-
-
-# MEan of cluster
-meanImagesCollected = pd.DataFrame(np.concatenate(imagesCollected))
-
-meanImagesCollected = pd.DataFrame(list(map(np.ravel, imagesCollected)))
-
-meanImagesCollected = meanImagesCollected.mean(axis=0)
-
-meanImagesCollected = meanImagesCollected.values.reshape((125,250))
-
-plt.imshow(meanImagesCollected, interpolation='nearest')
-plt.show()
+    #clusterDictionary = {"Testfile": Testfile, "ImageSSIM_Score": ImageSSIM_Score, "Images": imagesCollected}    
     
-plt.imshow(data_img, interpolation='nearest')
-plt.show()
-    
-resultDictionary
+    clusterDictionary = {"ImageSSIM_Score": ImageSSIM_Score, "Images": imagesCollected}    
 
+
+    resultDictionary[currCluster] = clusterDictionary
+    resultSSIM2_Rslt[currCluster] = df_SSIM2
+    
+
+
+
+# The clusters are complete.  SSIM Measures are finished
+
+
+# Create the SSIM Results in a new directory within the cluster directory:
+    
+    
+    #Create Directory Structure for Cluster Results
+studyPath = ClusterResultPath + "\\" +  clustDirChild + "_" +  FacialFeature[currFacialIndx]
+
+
+SSIMstudyPath = studyPath + "\\SSIM_Measures_Results"
+
+#ORIG
+#SSIMstudyPath = ClusterResultPath + "\\" +  clustDirChild + "\\SSIM_Measures_Results"
+
+
+if not os.path.exists(SSIMstudyPath):
+    os.makedirs(SSIMstudyPath)
+
+# Save SSIM Scoring
+
+fileName_SSIM_Dict = SSIMstudyPath + "/ResultDict_" + FacialFeature[currFacialIndx] + ".pkl"
+file_to_write = open(fileName_SSIM_Dict, "wb")
+pickle.dump(resultDictionary, file_to_write)
+file_to_write.close()
+
+fileName_SSIM_Dict = SSIMstudyPath + "/SSIM2_ResultMatrixDict_" + FacialFeature[currFacialIndx] + ".pkl"
+file_to_write = open(fileName_SSIM_Dict, "wb")
+pickle.dump(resultSSIM2_Rslt, file_to_write)
+file_to_write.close()
+    
+
+fileNameFacialPart_Images = FacialFeature[currFacialIndx] + "_" + montageDateVar
+
+
+# Build Comparison Images - Cluster Mean Image, Random Image
+
+cluster = 0
+totalImages = 0
 
 for key in resultDictionary:
-    print(key)
+    
+    #print(key)
 
     dictOfImages = resultDictionary[key]['Images']
 
     # MEan of cluster
-    #meanImagesColl = pd.DataFrame(np.concatenate(resultDictionary[key]['Images']))
-    
     meanImagesColl = pd.DataFrame(list(map(np.ravel, dictOfImages)))
-    
     meanImagesColl = meanImagesColl.mean(axis=0)
-    
     meanImagesColl = meanImagesColl.values.reshape((125,250))
-    
-    # plt.imshow(meanImagesColl, interpolation='nearest')
-    # plt.title(key,  fontweight ="bold")
-    # plt.show()
-    
-    
-    
-    
-    fig, (ax1, ax2) = plt.subplots(1, 2)
-    fig.suptitle("Output: " + key)
-    ax1.imshow(meanImagesColl, interpolation='nearest')
     
     
     exampleGT_Image = resultDictionary[key]['Images'][10]
     exampleGT_Image = exampleGT_Image.reshape((125,250))
     
+    
+    #Save Results to Dictionary
+    # fileName_SSIM_Dict = FacialFeature[currFacialIndx] + "_" + montageDateVar
+    # fileName_SSIM_Dict = studyPath + "/" + fileName_SSIM_Dict + "_CLUSTER_" + str(clusterID)+"_"+str(windows) +".jpg"
+
+    
+    totalClusterImages = len(dictOfImages)
+
+    #Create Master Visual
+    fig, (ax1, ax2,ax3) = plt.subplots(nrows = 1,ncols = 3, figsize=(15, 5), sharex=False, sharey=False)
+    fig.suptitle("Cluster: " + str(cluster) + " --- Total Images in Cluster: " + str(totalClusterImages))
+    ax1.axis('off')
+    ax1.set_title('MEAN Image'+ str(cluster))
+    ax1.imshow(meanImagesColl, interpolation='nearest')
+    
+    ax2.axis('off')
+    ax2.set_title('Random Image'+ str(cluster))
     ax2.imshow(exampleGT_Image, interpolation='nearest')
+
+    ax3.axis('on')
+    ax3.set_title('Histogram of SSIM Cluster:'+ str(cluster))    
+    ax3.hist(resultDictionary[key]['ImageSSIM_Score'], bins = 50,align='right', color='purple', edgecolor='black')
+
+
+    # Save Results - Mean with Random Image and Histogram
+    fileNameToSave = SSIMstudyPath + "/MeanWithRandomImage_SSIM" + FacialFeature[currFacialIndx] + "_CLUSTER_" + str(cluster)+ ".jpg"
+    fig.savefig(fileNameToSave)
     
-    histTitle = "Mean SSIM By Cluster Image: " + key
-    
-    resultDictionary[key]['ImageSSIM_Score'].plot(kind = 'hist', legend = False, bins = 50, title = histTitle)
-    
-    
+    # Save Results - Mean with Random Image and Histogram
+    fileNameToSave = SSIMstudyPath + "/MeanImage" + FacialFeature[currFacialIndx] + "_CLUSTER_" + str(cluster)+ ".jpg"
+    plt.imsave(fileNameToSave,meanImagesColl)
     
     
-    # plt.imshow(data_img, interpolation='nearest')
-    # plt.show()
     
-
-
-
-
-
-
-# Save Dictionary to Disk
-
-
-import pickle
-
-file_to_write = open("f:\MouthData.pickle", "wb")
-pickle.dump(resultDictionary, file_to_write)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     
 
 
+    totalImages = totalImages + totalClusterImages
+
+    cluster += 1    
+
+print("Total Images: " + str(totalImages))
+
+#Save Results To Disk
+
+# Save result Dictionary
 
 
 
-# df_SSIM2 = pd.DataFrame(index=range(len(FileList)),columns=range(len(FileList)))
-
-# df_SSIM2.columns = FileList
-# df_SSIM2.index = FileList
 
 
 
 
-# imagesCollected = []
 
-# #Testfile = FileList[1]
-# for Testfile in FileList:
 
-#     print("Cluster: " + CurrDirTail +"  Primary File: " + Testfile)
-#     test_path = os.path.join(data_dir, Testfile)
-#     test_img = cv.imread(test_path, cv.IMREAD_GRAYSCALE)
+
+
+
+
+
+
+
+# # out_FullFilePathToCluster.to_csv(studyPath+"\\"+FacialFeature[1]+"_ImageToCluster_Formatted.csv", index = False)
+# #         for montage in montages:
+# #             if viz_Cluster:
+# #                 winname = "Montage - Cluster: %d --- Iteration: %d" % (clusterID,windows)
+# #                 print(winname)
+# #                 cv.namedWindow(winname)
+# #                 cv.moveWindow(winname,40,30)
+# #                 #cv2.imshow("Montage - Cluster: %d --- Iteration: %d" % (i,j), montage)
+# #                 cv.imshow(winname,montage)
+# #                 cv.waitKey(0)
+# #                 cv.destroyAllWindows()
+            
+# #             windows += 1
+            
+# #             if savePaletteMontage == True:
+# #                 print("SAVING TO DISK")
+# #                 fileName = FacialFeature[currFacialIndx] + "_" + montageDateVar
+# #                 SaveFileName = studyPath + "/" + fileName + "_CLUSTER_" + str(clusterID)+"_"+str(windows) +".jpg"
+# #                 #print("SAVING: " + SaveFileName)
+# #                 cv.imwrite(SaveFileName,montage)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     
-#     currImage = test_img.ravel()
-#     imagesCollected.append(test_img.ravel())
+
+
+
+
+
+# # df_SSIM2 = pd.DataFrame(index=range(len(FileList)),columns=range(len(FileList)))
+
+# # df_SSIM2.columns = FileList
+# # df_SSIM2.index = FileList
+
+
+
+
+# # imagesCollected = []
+
+# # #Testfile = FileList[1]
+# # for Testfile in FileList:
+
+# #     print("Cluster: " + CurrDirTail +"  Primary File: " + Testfile)
+# #     test_path = os.path.join(data_dir, Testfile)
+# #     test_img = cv.imread(test_path, cv.IMREAD_GRAYSCALE)
     
-#     # plt.imshow(test_img, interpolation='nearest')
-#     # plt.show()
+# #     currImage = test_img.ravel()
+# #     imagesCollected.append(test_img.ravel())
+    
+# #     # plt.imshow(test_img, interpolation='nearest')
+# #     # plt.show()
+    
+# #     i = 0
+# #     #Curfile = FileList[0]
+    
+# #     for Curfile in FileList[i:len(FileList)]:
+        
+# #         print("Current File: " + str(i) + " Filename:" +Curfile)
+# #         data_path = os.path.join(data_dir, Curfile)
+# #         data_img = cv2.imread(data_path, cv2.IMREAD_GRAYSCALE)
+
+# #         # plt.imshow(data_img, interpolation='nearest')
+# #         # plt.show()
+        
+# #         if data_path != test_path:
+# #             df_SSIM2.loc[Testfile, Curfile] = ssim2(test_img, data_img, multichannel=True)
+# #         else:
+# #             print("Test and Current Image are the same SKIP......")
+        
+        
+        
+# #         i = i + 1
+
+
+
+
+#     for Testfile in currListOfFiles:
+    
+#         #print("Cluster: " + str(currCluster) +"  Primary File: " + Testfile)
+#         test_img = cv.imread(Testfile, cv.IMREAD_GRAYSCALE)
+        
+#         #currImage = test_img.ravel()
+#         #imagesCollected.append(test_img.ravel())
+
+
+
+
+
+
+
+
+
+# # Histogram
+# df_SSIM2.plot(kind = 'hist', legend = False, bins = 50, title = "Structural Similarity Index 2")
+
+
+# # Get minimum values of everyrow
+
+# df_SSIM2_Test = df_SSIM2
+# indexes = df_SSIM2_Test.index
+
+
+# df_SSIM2_Test['id_variable'] = indexes
+# long_SSIM2 = pd.melt(df_SSIM2_Test, id_vars = ['id_variable'])
+
+# long_SSIM2.dropna(subset = ['value'], inplace=True)
+# long_SSIM2 = long_SSIM2[long_SSIM2.id_variable != long_SSIM2.variable]
+# long_SSIM2 = long_SSIM2.sort_values(by = 'value')
+
+
+# # Determine the File with the Poor Scores
+
+# ImagesSSIM = long_SSIM2[['id_variable', 'value']]
+# ImagesSSIM = ImagesSSIM.set_axis(["Image","SSIM_Score"], axis = 1)
+# variableSSIM = long_SSIM2[['variable', 'value']]
+# variableSSIM = variableSSIM.set_axis(["Image","SSIM_Score"], axis = 1)
+# ImagesSSIM = ImagesSSIM.append(variableSSIM)
+
+# # using dictionary to convert specific columns
+# convert_dict = {'Image': str,
+#                 'SSIM_Score': float
+#                }
+  
+# variableSSIM = variableSSIM.astype(convert_dict)
+
+
+# ImageSSIM_Score = variableSSIM.groupby('Image').mean()
+# #ImageSSIM_Score = ImageSSIM_Score.sort_values(by = 'SSIM_Score')
+
+
+# # Histogram of SSIM Scores
+# #ImageSSIM_Score.plot(kind = 'hist', legend = False, bins = 50, title = "Mean SSIM By Cluster Image")
+
+# #Save Results
+# clusterDictionary = {"CurrDirTail": CurrDirTail, "ImageSSIM_Score": ImageSSIM_Score, "Images": imagesCollected}    
+
+
+# resultDictionary[CurrDirTail] = clusterDictionary
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# for data_dir in directories[16:19]:
+    
+#     clusterDictionary = {}
+#     print(data_dir)
+#     head, tail = os.path.split(data_dir)
+#     print("Head: "+ head)
+#     print("Tail: "+ os.path.basename(head))
+    
+#     CurrDirTail = os.path.basename(head)
+    
+    
+#     # # data_dir = directories[10]
+#     # # #data_dir = dirForPics + "CLUSTER0/"
+    
+#     FileList = os.listdir(data_dir)
+    
+#     # test_path = data_dir + data_dir[1]
+    
+#     # test_img = cv2.imread(test_path)
     
 #     i = 0
-#     #Curfile = FileList[0]
-    
-#     for Curfile in FileList[i:len(FileList)]:
-        
-#         print("Current File: " + str(i) + " Filename:" +Curfile)
-#         data_path = os.path.join(data_dir, Curfile)
-#         data_img = cv2.imread(data_path, cv2.IMREAD_GRAYSCALE)
-
-#         # plt.imshow(data_img, interpolation='nearest')
-#         # plt.show()
-        
-#         if data_path != test_path:
-#             df_SSIM2.loc[Testfile, Curfile] = ssim2(test_img, data_img, multichannel=True)
-#         else:
-#             print("Test and Current Image are the same SKIP......")
-        
-        
-        
-#         i = i + 1
-
-
-
-
-    for Testfile in currListOfFiles:
-    
-        #print("Cluster: " + str(currCluster) +"  Primary File: " + Testfile)
-        test_img = cv.imread(Testfile, cv.IMREAD_GRAYSCALE)
-        
-        #currImage = test_img.ravel()
-        #imagesCollected.append(test_img.ravel())
-
-
-
-
-
-
-
-
-
-# Histogram
-df_SSIM2.plot(kind = 'hist', legend = False, bins = 50, title = "Structural Similarity Index 2")
-
-
-# Get minimum values of everyrow
-
-df_SSIM2_Test = df_SSIM2
-indexes = df_SSIM2_Test.index
-
-
-df_SSIM2_Test['id_variable'] = indexes
-long_SSIM2 = pd.melt(df_SSIM2_Test, id_vars = ['id_variable'])
-
-long_SSIM2.dropna(subset = ['value'], inplace=True)
-long_SSIM2 = long_SSIM2[long_SSIM2.id_variable != long_SSIM2.variable]
-long_SSIM2 = long_SSIM2.sort_values(by = 'value')
-
-
-# Determine the File with the Poor Scores
-
-ImagesSSIM = long_SSIM2[['id_variable', 'value']]
-ImagesSSIM = ImagesSSIM.set_axis(["Image","SSIM_Score"], axis = 1)
-variableSSIM = long_SSIM2[['variable', 'value']]
-variableSSIM = variableSSIM.set_axis(["Image","SSIM_Score"], axis = 1)
-ImagesSSIM = ImagesSSIM.append(variableSSIM)
-
-# using dictionary to convert specific columns
-convert_dict = {'Image': str,
-                'SSIM_Score': float
-               }
-  
-variableSSIM = variableSSIM.astype(convert_dict)
-
-
-ImageSSIM_Score = variableSSIM.groupby('Image').mean()
-#ImageSSIM_Score = ImageSSIM_Score.sort_values(by = 'SSIM_Score')
-
-
-# Histogram of SSIM Scores
-#ImageSSIM_Score.plot(kind = 'hist', legend = False, bins = 50, title = "Mean SSIM By Cluster Image")
-
-#Save Results
-clusterDictionary = {"CurrDirTail": CurrDirTail, "ImageSSIM_Score": ImageSSIM_Score, "Images": imagesCollected}    
-
-
-resultDictionary[CurrDirTail] = clusterDictionary
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-for data_dir in directories[16:19]:
-    
-    clusterDictionary = {}
-    print(data_dir)
-    head, tail = os.path.split(data_dir)
-    print("Head: "+ head)
-    print("Tail: "+ os.path.basename(head))
-    
-    CurrDirTail = os.path.basename(head)
-    
-    
-    # # data_dir = directories[10]
-    # # #data_dir = dirForPics + "CLUSTER0/"
-    
-    FileList = os.listdir(data_dir)
-    
-    # test_path = data_dir + data_dir[1]
-    
-    # test_img = cv2.imread(test_path)
-    
-    i = 0
             
-    # Actual Implementation
+#     # Actual Implementation
     
-    df = pd.DataFrame(index=range(len(FileList)),columns=range(len(FileList)))
+#     df = pd.DataFrame(index=range(len(FileList)),columns=range(len(FileList)))
     
-    # Change the column names
-    df.columns = FileList
+#     # Change the column names
+#     df.columns = FileList
       
-    # Change the row indexes
-    df.index = FileList
+#     # Change the row indexes
+#     df.index = FileList
     
-    # Sewar Methods: https://towardsdatascience.com/measuring-similarity-in-two-images-using-python-b72233eb53c6
-    # PyImage Search: https://www.pyimagesearch.com/2014/09/15/python-compare-two-images/
+#     # Sewar Methods: https://towardsdatascience.com/measuring-similarity-in-two-images-using-python-b72233eb53c6
+#     # PyImage Search: https://www.pyimagesearch.com/2014/09/15/python-compare-two-images/
     
    
-    df_SSIM2 = pd.DataFrame(index=range(len(FileList)),columns=range(len(FileList)))
+#     df_SSIM2 = pd.DataFrame(index=range(len(FileList)),columns=range(len(FileList)))
     
-    df_SSIM2.columns = FileList
-    df_SSIM2.index = FileList
+#     df_SSIM2.columns = FileList
+#     df_SSIM2.index = FileList
     
 
     
     
-    imagesCollected = []
+#     imagesCollected = []
     
-    #Testfile = FileList[1]
-    for Testfile in FileList:
+#     #Testfile = FileList[1]
+#     for Testfile in FileList:
     
-        print("Cluster: " + CurrDirTail +"  Primary File: " + Testfile)
-        test_path = os.path.join(data_dir, Testfile)
-        test_img = cv.imread(test_path, cv.IMREAD_GRAYSCALE)
+#         print("Cluster: " + CurrDirTail +"  Primary File: " + Testfile)
+#         test_path = os.path.join(data_dir, Testfile)
+#         test_img = cv.imread(test_path, cv.IMREAD_GRAYSCALE)
         
-        currImage = test_img.ravel()
-        imagesCollected.append(test_img.ravel())
+#         currImage = test_img.ravel()
+#         imagesCollected.append(test_img.ravel())
         
-        # plt.imshow(test_img, interpolation='nearest')
-        # plt.show()
+#         # plt.imshow(test_img, interpolation='nearest')
+#         # plt.show()
         
-        i = 0
-        #Curfile = FileList[0]
+#         i = 0
+#         #Curfile = FileList[0]
         
-        for Curfile in FileList[i:len(FileList)]:
+#         for Curfile in FileList[i:len(FileList)]:
             
-            print("Current File: " + str(i) + " Filename:" +Curfile)
-            data_path = os.path.join(data_dir, Curfile)
-            data_img = cv2.imread(data_path, cv2.IMREAD_GRAYSCALE)
+#             print("Current File: " + str(i) + " Filename:" +Curfile)
+#             data_path = os.path.join(data_dir, Curfile)
+#             data_img = cv2.imread(data_path, cv2.IMREAD_GRAYSCALE)
     
-            # plt.imshow(data_img, interpolation='nearest')
-            # plt.show()
+#             # plt.imshow(data_img, interpolation='nearest')
+#             # plt.show()
             
-            if data_path != test_path:
-                df_SSIM2.loc[Testfile, Curfile] = ssim2(test_img, data_img, multichannel=True)
-            else:
-                print("Test and Current Image are the same SKIP......")
+#             if data_path != test_path:
+#                 df_SSIM2.loc[Testfile, Curfile] = ssim2(test_img, data_img, multichannel=True)
+#             else:
+#                 print("Test and Current Image are the same SKIP......")
             
             
             
-            i = i + 1
+#             i = i + 1
     
-    # Histogram
-    df_SSIM2.plot(kind = 'hist', legend = False, bins = 50, title = "Structural Similarity Index 2")
-    
-    
-    # Get minimum values of everyrow
-    
-    df_SSIM2_Test = df_SSIM2
-    indexes = df_SSIM2_Test.index
+#     # Histogram
+#     df_SSIM2.plot(kind = 'hist', legend = False, bins = 50, title = "Structural Similarity Index 2")
     
     
-    df_SSIM2_Test['id_variable'] = indexes
-    long_SSIM2 = pd.melt(df_SSIM2_Test, id_vars = ['id_variable'])
+#     # Get minimum values of everyrow
     
-    long_SSIM2.dropna(subset = ['value'], inplace=True)
-    long_SSIM2 = long_SSIM2[long_SSIM2.id_variable != long_SSIM2.variable]
-    long_SSIM2 = long_SSIM2.sort_values(by = 'value')
+#     df_SSIM2_Test = df_SSIM2
+#     indexes = df_SSIM2_Test.index
     
     
-    # Determine the File with the Poor Scores
+#     df_SSIM2_Test['id_variable'] = indexes
+#     long_SSIM2 = pd.melt(df_SSIM2_Test, id_vars = ['id_variable'])
     
-    ImagesSSIM = long_SSIM2[['id_variable', 'value']]
-    ImagesSSIM = ImagesSSIM.set_axis(["Image","SSIM_Score"], axis = 1)
-    variableSSIM = long_SSIM2[['variable', 'value']]
-    variableSSIM = variableSSIM.set_axis(["Image","SSIM_Score"], axis = 1)
-    ImagesSSIM = ImagesSSIM.append(variableSSIM)
+#     long_SSIM2.dropna(subset = ['value'], inplace=True)
+#     long_SSIM2 = long_SSIM2[long_SSIM2.id_variable != long_SSIM2.variable]
+#     long_SSIM2 = long_SSIM2.sort_values(by = 'value')
     
-    # using dictionary to convert specific columns
-    convert_dict = {'Image': str,
-                    'SSIM_Score': float
-                   }
+    
+#     # Determine the File with the Poor Scores
+    
+#     ImagesSSIM = long_SSIM2[['id_variable', 'value']]
+#     ImagesSSIM = ImagesSSIM.set_axis(["Image","SSIM_Score"], axis = 1)
+#     variableSSIM = long_SSIM2[['variable', 'value']]
+#     variableSSIM = variableSSIM.set_axis(["Image","SSIM_Score"], axis = 1)
+#     ImagesSSIM = ImagesSSIM.append(variableSSIM)
+    
+#     # using dictionary to convert specific columns
+#     convert_dict = {'Image': str,
+#                     'SSIM_Score': float
+#                    }
       
-    variableSSIM = variableSSIM.astype(convert_dict)
+#     variableSSIM = variableSSIM.astype(convert_dict)
     
     
-    ImageSSIM_Score = variableSSIM.groupby('Image').mean()
-    #ImageSSIM_Score = ImageSSIM_Score.sort_values(by = 'SSIM_Score')
+#     ImageSSIM_Score = variableSSIM.groupby('Image').mean()
+#     #ImageSSIM_Score = ImageSSIM_Score.sort_values(by = 'SSIM_Score')
     
     
-    # Histogram of SSIM Scores
-    #ImageSSIM_Score.plot(kind = 'hist', legend = False, bins = 50, title = "Mean SSIM By Cluster Image")
+#     # Histogram of SSIM Scores
+#     #ImageSSIM_Score.plot(kind = 'hist', legend = False, bins = 50, title = "Mean SSIM By Cluster Image")
 
-    #Save Results
-    clusterDictionary = {"CurrDirTail": CurrDirTail, "ImageSSIM_Score": ImageSSIM_Score, "Images": imagesCollected}    
-
-
-    resultDictionary[CurrDirTail] = clusterDictionary
+#     #Save Results
+#     clusterDictionary = {"CurrDirTail": CurrDirTail, "ImageSSIM_Score": ImageSSIM_Score, "Images": imagesCollected}    
 
 
-
-# MEan of cluster
-meanImagesCollected = pd.DataFrame(np.concatenate(imagesCollected))
-
-meanImagesCollected = pd.DataFrame(list(map(np.ravel, imagesCollected)))
-
-meanImagesCollected = meanImagesCollected.mean(axis=0)
-
-meanImagesCollected = meanImagesCollected.values.reshape((125,250))
-
-plt.imshow(meanImagesCollected, interpolation='nearest')
-plt.show()
-    
-plt.imshow(data_img, interpolation='nearest')
-plt.show()
-    
-resultDictionary
+#     resultDictionary[CurrDirTail] = clusterDictionary
 
 
-for key in resultDictionary:
-    print(key)
 
-    dictOfImages = resultDictionary[key]['Images']
+# # MEan of cluster
+# meanImagesCollected = pd.DataFrame(np.concatenate(imagesCollected))
 
-    # MEan of cluster
-    #meanImagesColl = pd.DataFrame(np.concatenate(resultDictionary[key]['Images']))
+# meanImagesCollected = pd.DataFrame(list(map(np.ravel, imagesCollected)))
+
+# meanImagesCollected = meanImagesCollected.mean(axis=0)
+
+# meanImagesCollected = meanImagesCollected.values.reshape((125,250))
+
+# plt.imshow(meanImagesCollected, interpolation='nearest')
+# plt.show()
     
-    meanImagesColl = pd.DataFrame(list(map(np.ravel, dictOfImages)))
+# plt.imshow(data_img, interpolation='nearest')
+# plt.show()
     
-    meanImagesColl = meanImagesColl.mean(axis=0)
-    
-    meanImagesColl = meanImagesColl.values.reshape((125,250))
-    
-    # plt.imshow(meanImagesColl, interpolation='nearest')
-    # plt.title(key,  fontweight ="bold")
-    # plt.show()
-    
-    
-    
-    
-    fig, (ax1, ax2) = plt.subplots(1, 2)
-    fig.suptitle("Output: " + key)
-    ax1.imshow(meanImagesColl, interpolation='nearest')
-    
-    
-    exampleGT_Image = resultDictionary[key]['Images'][10]
-    exampleGT_Image = exampleGT_Image.reshape((125,250))
-    
-    ax2.imshow(exampleGT_Image, interpolation='nearest')
-    
-    histTitle = "Mean SSIM By Cluster Image: " + key
-    
-    resultDictionary[key]['ImageSSIM_Score'].plot(kind = 'hist', legend = False, bins = 50, title = histTitle)
-    
-    
-    
-    
-    plt.imshow(data_img, interpolation='nearest')
-    plt.show()
-    
+# resultDictionary
 
 
+# for key in resultDictionary:
+#     print(key)
+
+#     dictOfImages = resultDictionary[key]['Images']
+
+#     # MEan of cluster
+#     #meanImagesColl = pd.DataFrame(np.concatenate(resultDictionary[key]['Images']))
+    
+#     meanImagesColl = pd.DataFrame(list(map(np.ravel, dictOfImages)))
+    
+#     meanImagesColl = meanImagesColl.mean(axis=0)
+    
+#     meanImagesColl = meanImagesColl.values.reshape((125,250))
+    
+#     # plt.imshow(meanImagesColl, interpolation='nearest')
+#     # plt.title(key,  fontweight ="bold")
+#     # plt.show()
+    
+    
+    
+    
+#     fig, (ax1, ax2) = plt.subplots(1, 2)
+#     fig.suptitle("Output: " + key)
+#     ax1.imshow(meanImagesColl, interpolation='nearest')
+    
+    
+#     exampleGT_Image = resultDictionary[key]['Images'][10]
+#     exampleGT_Image = exampleGT_Image.reshape((125,250))
+    
+#     ax2.imshow(exampleGT_Image, interpolation='nearest')
+    
+#     histTitle = "Mean SSIM By Cluster Image: " + key
+    
+#     resultDictionary[key]['ImageSSIM_Score'].plot(kind = 'hist', legend = False, bins = 50, title = histTitle)
+    
+    
+    
+    
+#     plt.imshow(data_img, interpolation='nearest')
+#     plt.show()
+    
 
 
 
 
-# Save Dictionary to Disk
 
 
-import pickle
-
-file_to_write = open("f:\MouthData.pickle", "wb")
-pickle.dump(resultDictionary, file_to_write)
+# # Save Dictionary to Disk
 
 
+# import pickle
+
+# file_to_write = open("f:\MouthData.pickle", "wb")
+# pickle.dump(resultDictionary, file_to_write)
+
+
 
     
     
@@ -1016,121 +1099,121 @@ pickle.dump(resultDictionary, file_to_write)
     
     
 
-# ---------------------------------------------------------------------------------------------------------------------------
+# # ---------------------------------------------------------------------------------------------------------------------------
 
 
 
  
-# END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END
-# -----------------------------------------------------------------------------------------------------------------------------------------------
-# -----------------------------------------------------------------------------------------------------------------------------------------------
+# # END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END END
+# # -----------------------------------------------------------------------------------------------------------------------------------------------
+# # -----------------------------------------------------------------------------------------------------------------------------------------------
 
 
-# Similarity Matrix
+# # Similarity Matrix
 
 
-import torch
-import time
-useTorch = True
+# import torch
+# import time
+# useTorch = True
 
-num = len(result_LeftEye_HOG_fd_FLAT)
-similarity_matrix = np.zeros((num, num))
+# num = len(result_LeftEye_HOG_fd_FLAT)
+# similarity_matrix = np.zeros((num, num))
 
-HOG_Matrix_torch = np.concatenate(result_LeftEye_HOG_fd_FLAT)
-HOG_Matrix_torch = torch.from_numpy(HOG_Matrix_torch)
+# HOG_Matrix_torch = np.concatenate(result_LeftEye_HOG_fd_FLAT)
+# HOG_Matrix_torch = torch.from_numpy(HOG_Matrix_torch)
 
-for i in range(0, num):
-    t0 = time.time()
-    print("Currently at i: ",i, "At Time : ",t0)
-    for j in range(i+1, num):
-        if useTorch == True:
-            diff =  torch.sub(HOG_Matrix_torch[i], 
-                              HOG_Matrix_torch[j])
-            #diff = diffTorch
-        else:
-            diffReg = HOG_Matrix_torch[i] - HOG_Matrix_torch[j]
-            # diff = diffReg
+# for i in range(0, num):
+#     t0 = time.time()
+#     print("Currently at i: ",i, "At Time : ",t0)
+#     for j in range(i+1, num):
+#         if useTorch == True:
+#             diff =  torch.sub(HOG_Matrix_torch[i], 
+#                               HOG_Matrix_torch[j])
+#             #diff = diffTorch
+#         else:
+#             diffReg = HOG_Matrix_torch[i] - HOG_Matrix_torch[j]
+#             # diff = diffReg
         
-       #Code To Validate the Torch and the Numpy Approaches
-        print(type(diff))
-        print("Torch Difference = ",torch.sum(diff))
-        # print(type(diffReg))
-        # print("Regular Subtraction Difference = ",np.sum(diffReg))
+#        #Code To Validate the Torch and the Numpy Approaches
+#         print(type(diff))
+#         print("Torch Difference = ",torch.sum(diff))
+#         # print(type(diffReg))
+#         # print("Regular Subtraction Difference = ",np.sum(diffReg))
         
-       # diffCheck = diffTorch - diffReg
-       # print("Type of Result ",type(diffCheck))
-       # print("Result of the difference of each data type: ",diffCheck)
-       # print("Torch Sum of the Difference of each Type = ",torch.sum(diffCheck))
+#        # diffCheck = diffTorch - diffReg
+#        # print("Type of Result ",type(diffCheck))
+#        # print("Result of the difference of each data type: ",diffCheck)
+#        # print("Torch Sum of the Difference of each Type = ",torch.sum(diffCheck))
         
-      #  if (i%10 == 0 & j%10 == 0):
-      #      print("i:",i," j:",j)
+#       #  if (i%10 == 0 & j%10 == 0):
+#       #      print("i:",i," j:",j)
         
-        dist_tmp = np.linalg.norm(diff)
-        similarity_matrix[i][j] = dist_tmp
-        similarity_matrix[j][i] = dist_tmp
-    print (time.time() - t0, " seconds wall time")
+#         dist_tmp = np.linalg.norm(diff)
+#         similarity_matrix[i][j] = dist_tmp
+#         similarity_matrix[j][i] = dist_tmp
+#     print (time.time() - t0, " seconds wall time")
 
 
-type(similarity_matrix)
+# type(similarity_matrix)
 
-torch_SimMatrix = torch.from_numpy(similarity_matrix)
-
-
-#convert to list
-list_SimMatrix = torch_SimMatrix.tolist()
-#flatten the lists
-flattened_list = [y for x in list_SimMatrix for y in x]
-
-import numpy as np
-import random
-from matplotlib import pyplot as plt
-
-data_Flat =flattened_list
-
-# fixed bin size
-bins = np.arange(0,100) # fixed bin size
-
-plt.xlim([min(data_Flat)-5, max(data_Flat)+5])
-
-plt.hist(data_Flat, bins=bins, alpha=0.5)
-plt.title('Similarity Matrix Histogram')
-plt.xlabel('Distance')
-plt.ylabel('Count')
-
-plt.show()
+# torch_SimMatrix = torch.from_numpy(similarity_matrix)
 
 
-indices = k_medoids(torch_SimMatrix, k=3)
-indices
+# #convert to list
+# list_SimMatrix = torch_SimMatrix.tolist()
+# #flatten the lists
+# flattened_list = [y for x in list_SimMatrix for y in x]
+
+# import numpy as np
+# import random
+# from matplotlib import pyplot as plt
+
+# data_Flat =flattened_list
+
+# # fixed bin size
+# bins = np.arange(0,100) # fixed bin size
+
+# plt.xlim([min(data_Flat)-5, max(data_Flat)+5])
+
+# plt.hist(data_Flat, bins=bins, alpha=0.5)
+# plt.title('Similarity Matrix Histogram')
+# plt.xlabel('Distance')
+# plt.ylabel('Count')
+
+# plt.show()
+
+
+# indices = k_medoids(torch_SimMatrix, k=3)
+# indices
 
 
 
 
-# --------------------------------------------------------------------------------------------------------------------------------------------
-# If PKL file does not exist - rebuild HOG using the following:
+# # --------------------------------------------------------------------------------------------------------------------------------------------
+# # If PKL file does not exist - rebuild HOG using the following:
 
-currFile = images_FacialPartFilesWithPath["FullPathToAnalyze"].loc[1]
+# currFile = images_FacialPartFilesWithPath["FullPathToAnalyze"].loc[1]
 
-for currFile in images_FacialPartFilesWithPath:
-        print("Current File: " + currFile)
+# for currFile in images_FacialPartFilesWithPath:
+#         print("Current File: " + currFile)
         
-        #Open Current Image
+#         #Open Current Image
         
-        currImage = cv.imread(currFile)
+#         currImage = cv.imread(currFile)
         
-        #Determine the number of channels:
-        currImage.ndim
+#         #Determine the number of channels:
+#         currImage.ndim
         
-        #Convert to HOG - Extract Histogram of Gradients - HOG        
-        orientations = 8
-        pixels_per_cell = (8,8)
-        cells_per_block = (2,2)
-        multiChannel = True
-        dpi = 60
+#         #Convert to HOG - Extract Histogram of Gradients - HOG        
+#         orientations = 8
+#         pixels_per_cell = (8,8)
+#         cells_per_block = (2,2)
+#         multiChannel = True
+#         dpi = 60
         
        
-        PyFeat_fd,PyFeat_hog_image = detector.extract_hog(currImage, orientation=orientations, pixels_per_cell=pixels_per_cell, cells_per_block=cells_per_block, visualize=True)#, multichannel = multiChannel)
+#         PyFeat_fd,PyFeat_hog_image = detector.extract_hog(currImage, orientation=orientations, pixels_per_cell=pixels_per_cell, cells_per_block=cells_per_block, visualize=True)#, multichannel = multiChannel)
 
 
-        plt.imshow(PyFeat_hog_image, interpolation='nearest')
-        plt.show()
+#         plt.imshow(PyFeat_hog_image, interpolation='nearest')
+#         plt.show()
